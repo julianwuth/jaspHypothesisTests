@@ -109,8 +109,8 @@ Description
 	{
 		title: qsTr("Single Variance") // Title for window
 		menu: qsTr("Single Variance")  // Title for ribbon
-		func: "interfaceExample"           // Function to be called
-		qml: "Interface.qml"               // Design input window
+		func: "singleVariance"           // Function to be called
+		qml: "singleVariance.qml"               // Design input window
 		requiresData: true                
 	}
 
