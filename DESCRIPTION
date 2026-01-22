@@ -11,12 +11,14 @@ License: GPL (>= 2)
 Encoding: UTF-8
 Imports:
     jaspBase,
+    jaspFrequencies (>= 0.95.5),
     jaspGraphs,
     jaspTTests
 Suggests:
   testthat
-Remotes: 
+Remotes:  
     jasp-stats/jaspBase,
     jasp-stats/jaspGraphs,
-    jasp-stats/jaspTTests
+    jasp-stats/jaspTTests,
+    jasp-stats/jaspFrequencies
 RoxygenNote: 7.3.3

@@ -59,8 +59,8 @@ Description
 	{
 		title: qsTr("Single Proportion") // Title for window
 		menu: qsTr("Single Proportion")  // Title for ribbon
-		func: "interfaceExample"           // Function to be called
-		qml: "Interface.qml"               // Design input window
+		func: "singleProportion"           // Function to be called
+		qml: "singleProportion.qml"               // Design input window
 		requiresData: true                
 	}
 
