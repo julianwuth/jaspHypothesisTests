@@ -32,10 +32,10 @@ Description
 
 	Analysis
 	{
-		title: qsTr("Independent Samples T-Test") // Title for window
-		menu: qsTr("Independent Samples T-Test")  // Title for ribbon
-		func: "interfaceExample"           // Function to be called
-		qml: "Interface.qml"               // Design input window
+		title: qsTr("Independent Samples Tests") // Title for window
+		menu: qsTr("Independent Samples Tests")  // Title for ribbon
+		func: "independentSamplesTests"           // Function to be called
+		qml: "independentSamplesTests.qml"               // Design input window
 		requiresData: true                
 	}
 

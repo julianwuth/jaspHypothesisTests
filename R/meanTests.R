@@ -22,3 +22,9 @@ oneSampleTests <- function(jaspResults, dataset, options, ...) {
   return(jaspTTests::TTestOneSampleInternal(jaspResults, dataset, options, ...))
 }
 
+
+#' @export
+independentSamplesTests <- function(jaspResults, dataset, options, ...) {
+  return(jaspTTests::TTestIndependentSamplesInternal(jaspResults, dataset, options, ...))
+}
+
