@@ -116,10 +116,10 @@ Description
 
 	Analysis
 	{
-		title: qsTr("Two Variances") // Title for window
-		menu: qsTr("Two Variances")  // Title for ribbon
-		func: "interfaceExample"           // Function to be called
-		qml: "Interface.qml"               // Design input window
+		title: qsTr("Multiple Variances") // Title for window
+		menu: qsTr("Multiple Variances")  // Title for ribbon
+		func: "multipleVariances"           // Function to be called
+		qml: "multipleVariances.qml"               // Design input window
 		requiresData: true                
 	}
 }
