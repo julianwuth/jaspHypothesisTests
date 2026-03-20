@@ -28,17 +28,17 @@ Form
         infoLabel: qsTr("Input")
         preferredHeight: jaspTheme.smallDefaultVariablesFormHeight
         AvailableVariablesList { name: "allVariablesList" }
-        AssignedVariablesList { name: "dependent"; title: qsTr("Dependent Variable"); allowedColumns: ["scale"] }
-        AssignedVariablesList { name: "factor"; title: qsTr("Grouping Variable"); allowedColumns: ["nominal"]; singleVariable: true }
+        AssignedVariablesList { name: "dependent"; title: qsTr("Dependent Variable"); allowedColumns: ["scale"]; info: qsTr("Scale variable(s) whose variances are compared across groups.") }
+        AssignedVariablesList { name: "factor"; title: qsTr("Grouping Variable"); allowedColumns: ["nominal"]; singleVariable: true; info: qsTr("Nominal variable defining the groups.") }
     }
 
     Group
     {
         title: qsTr("Tests")
-        CheckBox { name: "fTest"; label: qsTr("F-test (2 groups)") }
-        CheckBox { name: "leveneTest"; label: qsTr("Levene's test"); checked: true }
-        CheckBox { name: "bonettTest"; label: qsTr("Bonett's test") }
-        CheckBox { name: "bartlettTest"; label: qsTr("Bartlett's test") }
+        CheckBox { name: "fTest"; label: qsTr("F-test (2 groups)"); info: qsTr("F-test for equality of two variances.") }
+        CheckBox { name: "leveneTest"; label: qsTr("Levene's test"); checked: true; info: qsTr("Levene's test for equality of variances based on the median.") }
+        CheckBox { name: "bonettTest"; label: qsTr("Bonett's test"); info: qsTr("Bonett's test for equality of variances using Winsorized kurtosis.") }
+        CheckBox { name: "bartlettTest"; label: qsTr("Bartlett's test"); info: qsTr("Bartlett's test for equality of variances; assumes normality.") }
     }
 
     Group
@@ -63,7 +63,6 @@ Form
                 name: "varianceCi"
                 label: qsTr("Confidence interval")
                 id: varianceCi
-                enabled: descriptives.checked
                 childrenOnSameRow: true
                 CIField { name: "confLevel" }
             }
@@ -83,6 +82,7 @@ Form
         {
             name: "varianceRatioCi"
             label: qsTr("Variance ratio (2 groups)")
+            info: qsTr("Confidence interval for the variance ratio (F-test based, 2 groups only).")
         }
     }
 
