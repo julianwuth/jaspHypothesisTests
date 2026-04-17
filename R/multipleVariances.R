@@ -419,6 +419,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
 
     if (nrow(subData) == 0) next
 
+    # Confidence interval on ratio is not the same as in Minitab
     res <- try(var.test(subData$y ~ subData$group, conf.level = options[["confLevel"]]), silent = TRUE)
     if (isTryError(res)) {
       ratioTable$setError(as.character(res))

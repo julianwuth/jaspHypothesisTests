@@ -23,9 +23,8 @@ singleVariance <- function(jaspResults, dataset, options, ...) {
 
   if (ready)
     .hasErrors(dataset, type = c('infinity', 'variance'),
-               all.target = options$dependent, variance.equalTo = 0,
+               all.target = options[["dependent"]], variance.equalTo = 0,
                exitAnalysisIfErrors = TRUE)
-  # should I also control for empty variables after removing NAs here
 
   .createOutputTableSV(jaspResults, dataset, options, ready)
   .assumptionChecksSV(jaspResults, dataset, options, ready)
@@ -72,7 +71,9 @@ singleVariance <- function(jaspResults, dataset, options, ...) {
 
 .fillOutputTableSV <- function(outputTable, dataset, options) {
 
-  resSV <- apply(dataset, 2, .computeSVTest, options = options, outputTable = outputTable)
+  resSV <- sapply(colnames(dataset), .computeSVTest,
+                  options = options, outputTable = outputTable,
+                  dataset = dataset, simplify = FALSE)
 
   if (is.null(resSV)) # happens if an error occurred during computation
     return()
@@ -94,7 +95,17 @@ singleVariance <- function(jaspResults, dataset, options, ...) {
 }
 
 
-.computeSVTest <- function(col, options, outputTable) {
+.computeSVTest <- function(colname, options, outputTable, dataset) {
+  col <- na.omit(dataset[[colname]])
+
+  if(length(col) < 2) {
+    # TODO add a warning prefix here
+    outputTable$addFootnote(gettextf("%s has too few observations after removing NAs.", colname))
+    return(NULL)
+  }
+
+  # Note that the p-value is not the same as 2 * pchisq(test_val, df, lower.tail = FALSE)
+  # for the two-sided test
   out <- try(DescTools::VarTest(col, alternative = options$alternative,
                                 sigma.squared = options$testVariance,
                                 conf.level = options$confLevel), silent = TRUE)
@@ -125,7 +136,8 @@ singleVariance <- function(jaspResults, dataset, options, ...) {
   }
 
   # remove row names that are induced by the package
-  return(data.frame(varEst, sdEst, chiSquare, df, pValue, ciLower, ciUpper, row.names = NULL))
+  return(data.frame(varEst, sdEst, chiSquare,
+                    df, pValue, ciLower, ciUpper, row.names = NULL))
 }
 
 .getSidesCi <- function(options) {
@@ -204,7 +216,7 @@ singleVariance <- function(jaspResults, dataset, options, ...) {
 
   resList <- lapply(colnames(dataset), function(name) {
 
-    x <- dataset[[name]]
+    x <- na.omit(dataset[[name]])
     residuals <- x - mean(x) # TODO should this also be scaled?
     swTest <- try(shapiro.test(residuals), silent = TRUE)
 
@@ -213,7 +225,8 @@ singleVariance <- function(jaspResults, dataset, options, ...) {
       return(NULL)
     }
 
-    data.frame(varName = name, W = as.numeric(swTest$statistic), pValue = as.numeric(swTest$p.value), stringsAsFactors = FALSE)
+    data.frame(varName = name, W = as.numeric(swTest$statistic),
+               pValue = as.numeric(swTest$p.value), stringsAsFactors = FALSE)
   })
 
   results <- do.call(rbind, resList)
