@@ -1,0 +1,364 @@
+#
+# Copyright (C) 2013-2018 University of Amsterdam
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+#' @import jaspBase
+#' @export
+twoSamplePoissonRate <- function(jaspResults, dataset, options) {
+
+  inputType  <- options[["inputType"]]
+  hasAnyTest <- options[["exactTest"]] || options[["normalApprox"]]
+
+  if (inputType == "rawData") {
+    ready <- options[["count"]] != "" && options[["group"]] != "" && hasAnyTest
+    if (ready)
+      .hasErrors(dataset, type = "infinity",
+                 all.target = options[["count"]],
+                 exitAnalysisIfErrors = TRUE)
+  } else {
+    ready <- hasAnyTest
+  }
+
+  if (options[["descriptives"]])
+    .createDescriptivesTableTR(jaspResults, dataset, options, ready)
+
+  .createMainTableTR(jaspResults, dataset, options, ready)
+
+  return()
+}
+
+# --- Data extraction ---------------------------------------------------------
+
+.getGroupDataTR <- function(dataset, options) {
+  if (options[["inputType"]] == "rawData") {
+    countVar <- options[["count"]]
+    groupVar <- options[["group"]]
+
+    countCol <- dataset[[countVar]]
+    groupCol <- dataset[[groupVar]]
+    lvls     <- levels(factor(groupCol))
+
+    if (length(lvls) != 2)
+      stop(gettextf("Group variable must have exactly 2 levels, but found %d.", length(lvls)))
+
+    groups <- vector("list", 2)
+    for (i in 1:2) {
+      mask   <- !is.na(groupCol) & groupCol == lvls[i]
+      counts <- stats::na.omit(countCol[mask])
+      events <- as.integer(round(sum(counts)))
+
+      if (options[["time"]] != "") {
+        timeCol <- dataset[[options[["time"]]]]
+        time    <- sum(stats::na.omit(timeCol[mask]))
+      } else {
+        time <- length(counts)
+      }
+
+      groups[[i]] <- list(name = as.character(lvls[i]), events = events, time = time)
+    }
+  } else {
+    n1 <- options[["groupOneName"]]
+    n2 <- options[["groupTwoName"]]
+    groups <- list(
+      list(name   = if (nchar(n1) > 0) n1 else gettext("Group 1"),
+           events = options[["groupOneEvents"]],
+           time   = options[["groupOneTime"]]),
+      list(name   = if (nchar(n2) > 0) n2 else gettext("Group 2"),
+           events = options[["groupTwoEvents"]],
+           time   = options[["groupTwoTime"]])
+    )
+  }
+  groups[[1]]$rate <- groups[[1]]$events / groups[[1]]$time
+  groups[[2]]$rate <- groups[[2]]$events / groups[[2]]$time
+  return(groups)
+}
+
+# --- Descriptives table ------------------------------------------------------
+
+.createDescriptivesTableTR <- function(jaspResults, dataset, options, ready) {
+  if (!is.null(jaspResults[["descriptivesTable"]]))
+    return()
+
+  descTable <- createJaspTable(title = gettext("Descriptive Statistics"))
+  descTable$dependOn(c("inputType", "count", "group", "time",
+                       "groupOneName", "groupOneEvents", "groupOneTime",
+                       "groupTwoName", "groupTwoEvents", "groupTwoTime",
+                       "descriptives", "descriptiveCi", "confLevel"))
+  descTable$position <- 1
+  jaspResults[["descriptivesTable"]] <- descTable
+
+  descTable$addColumnInfo(name = "groupName", title = gettext("Group"),  type = "string")
+  descTable$addColumnInfo(name = "events",    title = gettext("Events"), type = "integer")
+  descTable$addColumnInfo(name = "time",      title = gettext("Time"),   type = "number")
+  descTable$addColumnInfo(name = "rate",      title = gettext("Rate"),   type = "number")
+
+  if (options[["descriptiveCi"]]) {
+    ciTitle <- gettextf("%i%% Confidence Interval", as.integer(options[["confLevel"]] * 100))
+    descTable$addColumnInfo(name = "ciLower", title = gettext("Lower"), type = "number",
+                            overtitle = ciTitle)
+    descTable$addColumnInfo(name = "ciUpper", title = gettext("Upper"), type = "number",
+                            overtitle = ciTitle)
+  }
+
+  descTable$showSpecifiedColumnsOnly <- TRUE
+
+  if (!ready)
+    return()
+
+  groupData <- try(.getGroupDataTR(dataset, options), silent = TRUE)
+  if (isTryError(groupData)) {
+    descTable$setError(gettext(as.character(groupData)))
+    return()
+  }
+
+  rows <- lapply(groupData, function(g) {
+    row <- data.frame(
+      groupName = g$name,
+      events    = as.integer(g$events),
+      time      = g$time,
+      rate      = g$rate,
+      row.names = NULL,
+      stringsAsFactors = FALSE
+    )
+    if (options[["descriptiveCi"]]) {
+      ciOut <- try(
+        stats::poisson.test(x = g$events, T = g$time, conf.level = options[["confLevel"]]),
+        silent = TRUE
+      )
+      if (!isTryError(ciOut)) {
+        row$ciLower <- ciOut$conf.int[1]
+        row$ciUpper <- ciOut$conf.int[2]
+      } else {
+        row$ciLower <- NA_real_
+        row$ciUpper <- NA_real_
+      }
+    }
+    return(row)
+  })
+
+  descTable$setData(do.call(rbind, rows))
+  descTable$addFootnote(gettext("Confidence interval based on exact Poisson distribution."),
+                        symbol = NULL)
+
+  return()
+}
+
+# --- Main test table ---------------------------------------------------------
+
+.createMainTableTR <- function(jaspResults, dataset, options, ready) {
+  if (!is.null(jaspResults[["outputTable"]]))
+    return()
+
+  outputTable <- createJaspTable(title = gettext("Two-Sample Poisson Rate Test"))
+  outputTable$dependOn(c("inputType", "count", "group", "time",
+                         "groupOneName", "groupOneEvents", "groupOneTime",
+                         "groupTwoName", "groupTwoEvents", "groupTwoTime",
+                         "exactTest", "normalApprox", "testRatio",
+                         "alternative", "confLevel", "ratioCi", "ciMethod"))
+  outputTable$position <- 2
+  jaspResults[["outputTable"]] <- outputTable
+
+  outputTable$addColumnInfo(name = "method", title = gettext("Method"),   type = "string")
+  outputTable$addColumnInfo(name = "rate1",  title = gettext("Rate\u2081"), type = "number")
+  outputTable$addColumnInfo(name = "rate2",  title = gettext("Rate\u2082"), type = "number")
+  outputTable$addColumnInfo(name = "ratio",  title = gettext("Ratio"),    type = "number")
+
+  if (options[["normalApprox"]])
+    outputTable$addColumnInfo(name = "statistic", title = gettext("Z"), type = "number")
+
+  outputTable$addColumnInfo(name = "pValue", title = gettext("p"), type = "pvalue")
+
+  if (options[["ratioCi"]]) {
+    ciTitle <- gettextf("%i%% CI for Ratio", as.integer(options[["confLevel"]] * 100))
+    outputTable$addColumnInfo(name = "ciLower", title = gettext("Lower"), type = "number",
+                              overtitle = ciTitle)
+    outputTable$addColumnInfo(name = "ciUpper", title = gettext("Upper"), type = "number",
+                              overtitle = ciTitle)
+  }
+
+  outputTable$showSpecifiedColumnsOnly <- TRUE
+
+  if (!ready)
+    return()
+
+  .fillMainTableTR(outputTable, dataset, options)
+
+  return()
+}
+
+.fillMainTableTR <- function(outputTable, dataset, options) {
+  groupData <- try(.getGroupDataTR(dataset, options), silent = TRUE)
+  if (isTryError(groupData)) {
+    outputTable$setError(gettext(as.character(groupData)))
+    return()
+  }
+
+  g1 <- groupData[[1]]
+  g2 <- groupData[[2]]
+
+  rows <- list()
+
+  if (options[["exactTest"]]) {
+    row <- .computeExactTestTR(g1, g2, options, outputTable)
+    if (!is.null(row))
+      rows[["exact"]] <- row
+  }
+
+  if (options[["normalApprox"]]) {
+    row <- .computeNormalApproxTR(g1, g2, options, outputTable)
+    if (!is.null(row))
+      rows[["normal"]] <- row
+  }
+
+  if (length(rows) == 0)
+    return()
+
+  outputTable$setData(do.call(rbind.data.frame, rows))
+
+  r0 <- options[["testRatio"]]
+  outputTable$addFootnote(
+    switch(options[["alternative"]],
+      "two.sided" = gettextf("H\u2080: rate\u2081/rate\u2082 = %.4g.", r0),
+      "greater"   = gettextf("H\u2081: rate\u2081/rate\u2082 > %.4g.", r0),
+      "less"      = gettextf("H\u2081: rate\u2081/rate\u2082 < %.4g.", r0)
+    )
+  )
+  outputTable$addFootnote(
+    gettextf("Group 1: %s. Group 2: %s.", g1$name, g2$name)
+  )
+
+  return()
+}
+
+.computeExactTestTR <- function(g1, g2, options, outputTable) {
+  out <- try(
+    stats::poisson.test(x           = c(g1$events, g2$events),
+                        T           = c(g1$time,   g2$time),
+                        r           = options[["testRatio"]],
+                        alternative = options[["alternative"]],
+                        conf.level  = options[["confLevel"]]),
+    silent = TRUE
+  )
+
+  if (isTryError(out)) {
+    outputTable$setError(gettext(as.character(out)))
+    return(NULL)
+  }
+
+  row <- data.frame(
+    method    = gettext("Exact"),
+    rate1     = g1$rate,
+    rate2     = g2$rate,
+    ratio     = g1$rate / g2$rate,
+    statistic = NA_real_,
+    pValue    = out$p.value,
+    row.names = NULL,
+    stringsAsFactors = FALSE
+  )
+
+  if (options[["ratioCi"]])
+    row <- .addRatioCiTR(row, g1, g2, options, outputTable)
+
+  return(row)
+}
+
+.computeNormalApproxTR <- function(g1, g2, options, outputTable) {
+  x1 <- g1$events;  x2 <- g2$events
+  T1 <- g1$time;    T2 <- g2$time
+  r0 <- options[["testRatio"]]
+
+  # Conditional binomial score test: X1 | X1+X2 ~ Bin(n, p0)
+  n  <- x1 + x2
+  p0 <- r0 * T1 / (r0 * T1 + T2)
+
+  if (n == 0) {
+    outputTable$setError(gettext("Normal approximation requires at least one observed event."))
+    return(NULL)
+  }
+
+  pHat      <- x1 / n
+  statistic <- (pHat - p0) / sqrt(p0 * (1 - p0) / n)
+
+  pValue <- switch(options[["alternative"]],
+    "two.sided" = 2 * stats::pnorm(-abs(statistic)),
+    "greater"   = stats::pnorm(statistic, lower.tail = FALSE),
+    "less"      = stats::pnorm(statistic)
+  )
+
+  row <- data.frame(
+    method    = gettext("Normal approximation"),
+    rate1     = g1$rate,
+    rate2     = g2$rate,
+    ratio     = g1$rate / g2$rate,
+    statistic = statistic,
+    pValue    = pValue,
+    row.names = NULL,
+    stringsAsFactors = FALSE
+  )
+
+  if (options[["ratioCi"]])
+    row <- .addRatioCiTR(row, g1, g2, options, outputTable)
+
+  return(row)
+}
+
+.addRatioCiTR <- function(row, g1, g2, options, outputTable) {
+  if (options[["ciMethod"]] == "exact") {
+    ciOut <- try(
+      stats::poisson.test(x           = c(g1$events, g2$events),
+                          T           = c(g1$time,   g2$time),
+                          r           = options[["testRatio"]],
+                          alternative = options[["alternative"]],
+                          conf.level  = options[["confLevel"]]),
+      silent = TRUE
+    )
+    if (isTryError(ciOut)) {
+      outputTable$addFootnote(gettext("Exact CI could not be computed."), symbol = gettext("Warning:"))
+      row$ciLower <- NA_real_
+      row$ciUpper <- NA_real_
+    } else {
+      row$ciLower <- ciOut$conf.int[1]
+      row$ciUpper <- ciOut$conf.int[2]
+    }
+  } else { # log-transform normal CI for ratio
+    x1 <- g1$events;  x2 <- g2$events
+    if (x1 == 0 || x2 == 0) {
+      outputTable$addFootnote(
+        gettext("Normal approximation CI for ratio requires both event counts > 0."),
+        symbol = gettext("Warning:")
+      )
+      row$ciLower <- NA_real_
+      row$ciUpper <- NA_real_
+    } else {
+      alpha   <- 1 - options[["confLevel"]]
+      z       <- stats::qnorm(1 - alpha / ifelse(options[["alternative"]] == "two.sided", 2, 1))
+      logRat  <- log(g1$rate / g2$rate)
+      seLR    <- sqrt(1 / x1 + 1 / x2)
+
+      if (options[["alternative"]] == "two.sided") {
+        row$ciLower <- exp(logRat - z * seLR)
+        row$ciUpper <- exp(logRat + z * seLR)
+      } else if (options[["alternative"]] == "greater") {
+        row$ciLower <- exp(logRat - z * seLR)
+        row$ciUpper <- Inf
+      } else {
+        row$ciLower <- 0
+        row$ciUpper <- exp(logRat + z * seLR)
+      }
+    }
+  }
+  return(row)
+}

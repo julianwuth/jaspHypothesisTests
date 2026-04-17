@@ -82,20 +82,20 @@ Description
 
 	Analysis
 	{
-		title: qsTr("One Sample Poisson Rate") // Title for window
-		menu: qsTr("One Sample Poisson Rate")  // Title for ribbon
-		func: "interfaceExample"           // Function to be called
-		qml: "Interface.qml"               // Design input window
-		requiresData: true                
+		title:        qsTr("One Sample Poisson Rate")
+		menu:         qsTr("One Sample Poisson Rate")
+		func:         "oneSamplePoissonRate"
+		qml:          "oneSamplePoissonRate.qml"
+		requiresData: false
 	}
 
 	Analysis
 	{
-		title: qsTr("Two Sample Poisson Rate") // Title for window
-		menu: qsTr("Two Sample Poisson Rate")  // Title for ribbon
-		func: "interfaceExample"           // Function to be called
-		qml: "Interface.qml"               // Design input window
-		requiresData: true                
+		title:        qsTr("Two Sample Poisson Rate")
+		menu:         qsTr("Two Sample Poisson Rate")
+		func:         "twoSamplePoissonRate"
+		qml:          "twoSamplePoissonRate.qml"
+		requiresData: false
 	}
 
 	Separator{}
