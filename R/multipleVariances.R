@@ -116,6 +116,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
 
     # Levene's Test
     if (options[["leveneTest"]]) {
+      # TODO using the median technically means that this is the Brown-Forsythe test
       res <- try(car::leveneTest(y ~ group, center = median), silent = TRUE)
       if (isTryError(res)) {
         outputTable$setError(gettext(as.character(res)))

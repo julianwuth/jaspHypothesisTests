@@ -80,22 +80,22 @@ Form
 
 		IntegerField
 		{
-			name:         "observedEvents"
-			label:        qsTr("Number of events")
+			name:         "observedOccurences"
+			label:        qsTr("Number of occurences")
 			defaultValue: 1
 			min:          0
-			info:         qsTr("Total number of observed events.")
+			info:         qsTr("Total number of observed occurrences.")
 		}
 
 		DoubleField
 		{
-			name:         "observationTime"
-			label:        qsTr("Time")
+			name:         "sampleSize"
+			label:        qsTr("Sample size")
 			defaultValue: 1
 			min:          0
 			decimals:     4
 			inclusive:    JASP.MaxOnly
-			info:         qsTr("Total observation time or exposure.")
+			info:         qsTr("Total number of observations.")
 		}
 	}
 

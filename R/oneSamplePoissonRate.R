@@ -26,8 +26,9 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
   if (inputType == "rawData") {
     ready <- options[["count"]] != "" && hasAnyTest
     if (ready)
-      .hasErrors(dataset, type = "infinity",
-                 all.target = options[["count"]],
+      .hasErrors(dataset, type = c("infinity", "negativeValues"),
+                 infinity.target = options[["count"]],
+                 negativeValues.target = options[["time"]],
                  exitAnalysisIfErrors = TRUE)
   } else {
     ready <- hasAnyTest
@@ -50,8 +51,8 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
       time <- length(countCol)
     }
   } else {
-    events <- options[["observedEvents"]]
-    time   <- options[["observationTime"]]
+    events <- options[["observedOccurences"]]
+    time   <- options[["sampleSize"]]
   }
   return(list(events = events, time = time))
 }
@@ -61,7 +62,7 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
     return()
 
   outputTable <- createJaspTable(title = gettext("One-Sample Poisson Rate Test"))
-  outputTable$dependOn(c("inputType", "count", "time", "observedEvents", "observationTime",
+  outputTable$dependOn(c("inputType", "count", "time", "observedOccurences", "sampleSize",
                          "exactTest", "normalApprox", "testRate", "alternative",
                          "confLevel", "rateCi", "ciMethod"))
   jaspResults[["outputTable"]] <- outputTable
@@ -129,9 +130,9 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
   rate0 <- options[["testRate"]]
   outputTable$addFootnote(
     switch(options[["alternative"]],
-      "two.sided" = gettextf("Hypothesized rate: %.4g.", rate0),
-      "greater"   = gettextf("Alternative hypothesis: rate > %.4g.", rate0),
-      "less"      = gettextf("Alternative hypothesis: rate < %.4g.", rate0)
+      "two.sided" = gettextf("Alternative hypothesis: Rate ≠ %.4g.", rate0),
+      "greater"   = gettextf("Alternative hypothesis: Rate > %.4g.", rate0),
+      "less"      = gettextf("Alternative hypothesis: Rate < %.4g.", rate0)
     )
   )
 
@@ -158,7 +159,7 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
     events    = as.integer(events),
     time      = time,
     rate      = rate,
-    statistic = NA_real_,
+    statistic = "",
     pValue    = out$p.value,
     row.names = NULL,
     stringsAsFactors = FALSE
