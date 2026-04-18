@@ -99,8 +99,8 @@ singleVariance <- function(jaspResults, dataset, options, ...) {
   col <- na.omit(dataset[[colname]])
 
   if(length(col) < 2) {
-    # TODO add a warning prefix here
-    outputTable$addFootnote(gettextf("%s has too few observations after removing NAs.", colname))
+    outputTable$addFootnote(gettextf("%s has too few observations after removing missing values.", colname),
+                            symbol = gettext("<b>Warning:</b>"))
     return(NULL)
   }
 

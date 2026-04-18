@@ -24,8 +24,13 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
   ready <- (length(options[["dependent"]]) > 0 && options[["factor"]] != "")
 
   if (ready)
-    .hasErrors(dataset, type = c('infinity', 'variance'),
-               all.target = options[["dependent"]], variance.equalTo = 0,
+    # TODO check if this should also check for exactly 2 levels of the factor
+    .hasErrors(dataset, type = c('infinity', 'variance', 'factorLevels'),
+               infinity.target = options[["dependent"]],
+               variance.target = options[["dependent"]],
+               variance.equalTo = 0,
+               factorLevels.target = options[["factor"]],
+               factorLevels.amount = '< 2',
                exitAnalysisIfErrors = TRUE)
 
   .createOutputTableMV(jaspResults, dataset, options, ready)
@@ -35,6 +40,9 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
 
   if (options[["varianceRatioCi"]])
     .createVarianceRatioTableMV(jaspResults, dataset, options, ready)
+
+  if (any(c(options[["boxPlot"]], options[["varRatioPlot"]], options[["varEstimatePlot"]])))
+    .createSummaryPlotContainerMV(jaspResults, dataset, options, ready)
 
   .assumptionChecksMV(jaspResults, dataset, options, ready)
 
@@ -83,7 +91,11 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     subData <- data.frame(y = y, group = factor)
     subData <- na.omit(subData)
 
-    if (nrow(subData) == 0) next
+    if (nrow(subData) == 0) {
+      outputTable$addFootnote(gettextf("%s has no observations after removing missing values.", depName),
+                              symbol = gettext("<b>Warning:</b>"))
+      next
+    }
 
     y <- subData$y
     group <- subData$group
@@ -92,7 +104,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     if (options[["fTest"]] && nLevels == 2) {
       res <- try(var.test(y ~ group), silent = TRUE)
       if (isTryError(res)) {
-        outputTable$setError(as.character(res))
+        outputTable$setError(gettext(as.character(res)))
         return()
       }
       rows[[length(rows) + 1]] <- list(var = depName, test = gettext("F"),
@@ -106,7 +118,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     if (options[["leveneTest"]]) {
       res <- try(car::leveneTest(y ~ group, center = median), silent = TRUE)
       if (isTryError(res)) {
-        outputTable$setError(as.character(res))
+        outputTable$setError(gettext(as.character(res)))
         return()
       }
       rows[[length(rows) + 1]] <- list(var = depName, test = gettext("Levene's"),
@@ -117,7 +129,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     if (options[["bartlettTest"]]) {
       res <- try(bartlett.test(y ~ group), silent = TRUE)
       if (isTryError(res)) {
-        outputTable$setError(as.character(res))
+        outputTable$setError(gettext(as.character(res)))
         return()
       }
       rows[[length(rows) + 1]] <- list(var = depName, test = gettext("Bartlett's"),
@@ -128,7 +140,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     if (options[["bonettTest"]]) {
       res <- try(.computeBonettTest(y, group, depName), silent = TRUE)
       if (isTryError(res)) {
-        outputTable$setError(as.character(res))
+        outputTable$setError(gettext(as.character(res)))
         return()
       }
       if (!is.null(res$error)) {
@@ -337,12 +349,12 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
         meanEst <- mean(subY)
         varEst  <- var(subY)
         sdEst   <- sqrt(varEst)
-        ci      <- .computeGroupVarianceCi(subY, varEst, options)
       }
 
       row <- list(var = depName, group = lvl, n = n, mean = meanEst, sd = sdEst, varEst = varEst)
 
       if (options[["varianceCi"]]) {
+        ci <- .computeGroupVarianceCi(subY, varEst, options)
         row$lower <- ci[1]
         row$upper <- ci[2]
       }
@@ -359,11 +371,15 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
 .computeGroupVarianceCi <- function(subY, varEst, options) {
   if (options[["ciMethod"]] == "bonett") {
     ciRes <- try(DescTools::VarCI(subY, method = "bonett", conf.level = options[["confLevel"]]), silent = TRUE)
+
+    # TODO perhaps return an error message here
     if (isTryError(ciRes))
       return(c(NA, NA))
+
     return(c(ciRes["lwr.ci"], ciRes["upr.ci"]))
   }
 
+  # TODO check that these computations are correct
   # Default: chi-square method
   df    <- length(subY) - 1
   alpha <- 1 - options[["confLevel"]]
@@ -417,9 +433,13 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     subData <- data.frame(y = y, group = factor)
     subData <- na.omit(subData)
 
-    if (nrow(subData) == 0) next
+    if (nrow(subData) == 0) {
+      ratioTable$addFootnote(gettextf("%s has no observations after removing missing values.", depName),
+                             symbol = gettext("<b>Warning:</b>"))
+      next
+    }
 
-    # Confidence interval on ratio is not the same as in Minitab
+    # TODO Confidence interval on ratio is not the same as in Minitab
     res <- try(var.test(subData$y ~ subData$group, conf.level = options[["confLevel"]]), silent = TRUE)
     if (isTryError(res)) {
       ratioTable$setError(as.character(res))
@@ -436,15 +456,14 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
   return()
 }
 
+# This could potentially become a common function across analyses
 .assumptionChecksMV <- function(jaspResults, dataset, options, ready) {
-  if(!is.null(jaspResults[["assumptionChecks"]]))
-    return()
-
-  assumptionContainer <- createJaspContainer(title = gettext("Assumption Checks"))
-  assumptionContainer$dependOn(c("dependent", "factor"))
-  assumptionContainer$position <- 4
-
-  jaspResults[["assumptionChecks"]] <- assumptionContainer
+  if (is.null(jaspResults[["assumptionChecks"]])) {
+    assumptionContainer <- createJaspContainer(title = gettext("Assumption Checks"))
+    assumptionContainer$dependOn(c("dependent", "factor"))
+    assumptionContainer$position <- 5
+    jaspResults[["assumptionChecks"]] <- assumptionContainer
+  }
 
   if (options[["normalityTest"]])
     .createNormalityTestTableMV(jaspResults, dataset, options, ready)
@@ -482,6 +501,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
   resList <- lapply(options[["dependent"]], function(depName) {
 
     y <- dataset[[depName]]
+    # TODO check if this is the right way to get residuals and check them
     model <- aov(y ~ factor)
     resids <- residuals(model)
 
@@ -524,11 +544,219 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     resids <- residuals(model)
     stdResids <- scale(resids)
 
-    tempPlot <- createJaspPlot(title = depName, height = 400, width = 500)
+    tempPlot <- createJaspPlot(title = gettext(depName), height = 400, width = 500)
     tempPlot$plotObject <- jaspGraphs::plotQQnorm(as.vector(stdResids),
                                                   ciLevel = 0.95,
                                                   yName = gettext("Standardized Residuals"))
     qqContainer[[depName]] <- tempPlot
+  }
+
+  return()
+}
+
+.createSummaryPlotContainerMV <- function(jaspResults, dataset, options, ready) {
+  if (is.null(jaspResults[["summaryPlots"]])) {
+    summaryPlots <- createJaspContainer(gettext("Summary Plots"))
+    summaryPlots$dependOn(c("dependent", "factor"))
+    summaryPlots$position <- 4
+    jaspResults[["summaryPlots"]] <- summaryPlots
+  }
+
+  if (options[["boxPlot"]])
+    .boxplotMV(jaspResults, dataset, options, ready)
+
+  if (options[["varRatioPlot"]])
+    .varRatioPlotMV(jaspResults, dataset, options, ready)
+
+  if (options[["varEstimatePlot"]])
+    .varEstimatePlotMV(jaspResults, dataset, options, ready)
+
+  return()
+}
+
+.boxplotMV <- function(jaspResults, dataset, options, ready) {
+  if (!is.null(jaspResults[["summaryPlots"]][["boxPlot"]]))
+    return()
+
+  boxContainer <- createJaspContainer(title = gettext("Box Plot"))
+  boxContainer$dependOn("boxPlot")
+  jaspResults[["summaryPlots"]][["boxPlot"]] <- boxContainer
+
+  if (!ready)
+    return()
+
+  factorName <- options[["factor"]]
+  factor     <- as.factor(dataset[[factorName]])
+
+  for (depName in options[["dependent"]]) {
+    # TODO check if it is actually advised to wrap variable name titles into gettext
+    tempPlot <- createJaspPlot(title = gettext(depName), height = 350, width = 500)
+    boxContainer[[depName]] <- tempPlot
+
+    plotDat <- na.omit(data.frame(y = dataset[[depName]], group = factor))
+    if (nrow(plotDat) == 0) {
+      tempPlot$setError(gettextf("%s has no observations after removing missing values.", depName))
+      next
+    }
+
+    yBreaks <- jaspGraphs::getPrettyAxisBreaks(plotDat$y)
+    yLims   <- range(yBreaks)
+
+    p <- try(
+      ggplot2::ggplot(plotDat, ggplot2::aes(x = group, y = y)) +
+        ggplot2::geom_boxplot(outlier.shape = 4) +
+        ggplot2::scale_y_continuous(breaks = yBreaks, limits = yLims) +
+        ggplot2::labs(x = factorName, y = depName) +
+        jaspGraphs::geom_rangeframe() +
+        jaspGraphs::themeJaspRaw()
+    )
+    if (isTryError(p)) {
+      tempPlot$setError(as.character(p))
+      next
+    }
+
+    tempPlot$plotObject <- p
+  }
+
+  return()
+}
+
+.varRatioPlotMV <- function(jaspResults, dataset, options, ready) {
+  if (!is.null(jaspResults[["summaryPlots"]][["varRatioPlot"]]))
+    return()
+
+  ratioContainer <- createJaspContainer(title = gettext("Variance Ratio Plot"))
+  ratioContainer$dependOn(c("varRatioPlot", "confLevel"))
+  jaspResults[["summaryPlots"]][["varRatioPlot"]] <- ratioContainer
+
+  if (!ready)
+    return()
+
+  factor <- as.factor(dataset[[options[["factor"]]]])
+  levels <- levels(factor)
+
+  if (length(levels) != 2) {
+    placeholder <- createJaspPlot(title = gettext("Variance Ratio"))
+    placeholder$setError(gettext("Variance ratio plot is only available for 2 groups."))
+    ratioContainer[["notApplicable"]] <- placeholder
+    return()
+  }
+
+  xLabel <- gettextf("%i%% CI for \u03C3\u00B2(%s) / \u03C3\u00B2(%s)",
+                     round(options[["confLevel"]] * 100), levels[1], levels[2])
+
+  for (depName in options[["dependent"]]) {
+    tempPlot <- createJaspPlot(title = gettext(depName), height = 250, width = 500)
+    ratioContainer[[depName]] <- tempPlot
+
+    plotDat <- na.omit(data.frame(y = dataset[[depName]], group = factor))
+    if (nrow(plotDat) == 0) {
+      tempPlot$setError(gettextf("%s has no observations after removing missing values.", depName))
+      next
+    }
+
+    # F-test-based variance ratio CI
+    res <- try(var.test(plotDat$y ~ plotDat$group, conf.level = options[["confLevel"]]), silent = TRUE)
+    if (isTryError(res)) {
+      tempPlot$setError(as.character(res))
+      next
+    }
+
+    df <- data.frame(
+      method   = gettext("F-test"),
+      estimate = unname(res$estimate),
+      lower    = res$conf.int[1],
+      upper    = res$conf.int[2]
+    )
+
+    xBreaks <- jaspGraphs::getPrettyAxisBreaks(c(1, df$lower, df$upper))
+    xLims   <- range(xBreaks)
+
+    p <- ggplot2::ggplot(df, ggplot2::aes(y = method, x = estimate, xmin = lower, xmax = upper)) +
+      ggplot2::geom_vline(xintercept = 1, linetype = "dashed", colour = "red") +
+      ggplot2::geom_errorbarh(height = 0.2) +
+      ggplot2::geom_point(size = 3) +
+      ggplot2::scale_x_continuous(breaks = xBreaks, limits = xLims) +
+      ggplot2::labs(x = xLabel, y = "") +
+      jaspGraphs::geom_rangeframe(sides = "bl") +
+      jaspGraphs::themeJaspRaw()
+
+    tempPlot$plotObject <- p
+  }
+
+  return()
+}
+
+.varEstimatePlotMV <- function(jaspResults, dataset, options, ready) {
+  if (!is.null(jaspResults[["summaryPlots"]][["varEstimatePlot"]]))
+    return()
+
+  estContainer <- createJaspContainer(title = gettext("Variance Estimate Plot"))
+  estContainer$dependOn(c("varEstimatePlot", "confLevel", "ciMethod"))
+  jaspResults[["summaryPlots"]][["varEstimatePlot"]] <- estContainer
+
+  if (!ready)
+    return()
+
+  factorName <- options[["factor"]]
+  factor     <- as.factor(dataset[[factorName]])
+  ciMethod   <- if (identical(options[["ciMethod"]], "bonett")) "bonett" else "classic"
+  xLabel     <- gettextf("%i%% CI for \u03C3\u00B2", round(options[["confLevel"]] * 100))
+  factorLvls <- levels(factor)
+
+  for (depName in options[["dependent"]]) {
+    tempPlot <- createJaspPlot(title = gettext(depName), height = 350, width = 500)
+    estContainer[[depName]] <- tempPlot
+
+    plotDat <- na.omit(data.frame(y = dataset[[depName]], group = factor))
+    if (nrow(plotDat) == 0) {
+      tempPlot$setError(gettextf("%s has no observations after removing missing values.", depName))
+      next
+    }
+
+    rowsList <- list()
+    ciErr <- NULL
+    for (lvl in factorLvls) {
+      yg <- plotDat$y[plotDat$group == lvl]
+      if (length(yg) < 2) next
+
+      ci <- try(DescTools::VarCI(yg, method = ciMethod, conf.level = options[["confLevel"]]), silent = TRUE)
+      if (isTryError(ci)) {
+        ciErr <- as.character(ci)
+        break
+      }
+      rowsList[[lvl]] <- data.frame(
+        group    = lvl,
+        estimate = var(yg),
+        lower    = unname(ci["lwr.ci"]),
+        upper    = unname(ci["upr.ci"])
+      )
+    }
+
+    if (!is.null(ciErr)) {
+      tempPlot$setError(ciErr)
+      next
+    }
+    if (length(rowsList) == 0) {
+      tempPlot$setError(gettextf("%s has no groups with sufficient observations.", depName))
+      next
+    }
+
+    df <- do.call(rbind, rowsList)
+    df$group <- factor(df$group, levels = factorLvls)
+
+    xBreaks <- jaspGraphs::getPrettyAxisBreaks(c(df$lower, df$upper))
+    xLims   <- range(xBreaks)
+
+    p <- ggplot2::ggplot(df, ggplot2::aes(y = group, x = estimate, xmin = lower, xmax = upper)) +
+      ggplot2::geom_errorbarh(height = 0.2) +
+      ggplot2::geom_point(size = 3) +
+      ggplot2::scale_x_continuous(breaks = xBreaks, limits = xLims) +
+      ggplot2::labs(x = xLabel, y = factorName) +
+      jaspGraphs::geom_rangeframe(sides = "bl") +
+      jaspGraphs::themeJaspRaw()
+
+    tempPlot$plotObject <- p
   }
 
   return()

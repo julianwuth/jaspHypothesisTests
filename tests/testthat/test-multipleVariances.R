@@ -1,5 +1,3 @@
-context("Multiple Variances")
-
 .mvOptions <- function() {
   jaspTools::analysisOptions("multipleVariances")
 }
