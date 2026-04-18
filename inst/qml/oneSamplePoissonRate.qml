@@ -167,22 +167,10 @@ Form
 		{
 			name:              "rateCi"
 			label:             qsTr("Confidence interval")
-			id:                rateCi
 			childrenOnSameRow: true
-			info:              qsTr("Confidence interval for the event rate.")
+			info:              qsTr("Confidence interval for the event rate. Uses the method of the corresponding row in the test table.")
 
 			CIField { name: "confLevel" }
-		}
-
-		RadioButtonGroup
-		{
-			name:                "ciMethod"
-			title:               qsTr("Method")
-			enabled:             rateCi.checked
-			radioButtonsOnSameRow: true
-
-			RadioButton { value: "exact";  label: qsTr("Exact");               checked: true }
-			RadioButton { value: "normal"; label: qsTr("Normal approximation") }
 		}
 	}
 }

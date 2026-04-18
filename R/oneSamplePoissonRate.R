@@ -64,7 +64,7 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
   outputTable <- createJaspTable(title = gettext("One-Sample Poisson Rate Test"))
   outputTable$dependOn(c("inputType", "count", "time", "observedOccurrences", "sampleSize",
                          "exactTest", "normalApprox", "testRate", "alternative",
-                         "confLevel", "rateCi", "ciMethod"))
+                         "confLevel", "rateCi"))
   jaspResults[["outputTable"]] <- outputTable
 
   outputTable$addColumnInfo(name = "method",  title = gettext("Method"),  type = "string")
@@ -73,7 +73,7 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
   outputTable$addColumnInfo(name = "rate",    title = gettext("Rate"),    type = "number")
 
   if (options[["normalApprox"]])
-    outputTable$addColumnInfo(name = "statistic", title = gettext("Z"), type = "number")
+    outputTable$addColumnInfo(name = "statistic", title = gettext("z"), type = "number")
 
   outputTable$addColumnInfo(name = "pValue", title = gettext("p"), type = "pvalue")
 
@@ -159,14 +159,14 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
     events    = as.integer(events),
     time      = time,
     rate      = rate,
-    statistic = "",
+    statistic = NA,
     pValue    = out$p.value,
     row.names = NULL,
     stringsAsFactors = FALSE
   )
 
   if (options[["rateCi"]])
-    row <- .addCiPR(row, events, time, rate, options, outputTable)
+    row <- .addCiPR(row, events, time, rate, options, outputTable, method = "exact")
 
   return(row)
 }
@@ -193,13 +193,13 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
   )
 
   if (options[["rateCi"]])
-    row <- .addCiPR(row, events, time, rate, options, outputTable)
+    row <- .addCiPR(row, events, time, rate, options, outputTable, method = "normal")
 
   return(row)
 }
 
-.addCiPR <- function(row, events, time, rate, options, outputTable) {
-  if (options[["ciMethod"]] == "exact") {
+.addCiPR <- function(row, events, time, rate, options, outputTable, method) {
+  if (method == "exact") {
     ciOut <- try(
       stats::poisson.test(x           = events,
                           T           = time,
@@ -210,8 +210,8 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
     )
     if (isTryError(ciOut)) {
       outputTable$addFootnote(gettext("Exact CI could not be computed."), symbol = gettext("<b>Warning:</b>"))
-      row$ciLower <- ""
-      row$ciUpper <- ""
+      row$ciLower <- NA
+      row$ciUpper <- NA
     } else {
       row$ciLower <- ciOut$conf.int[1]
       row$ciUpper <- ciOut$conf.int[2]

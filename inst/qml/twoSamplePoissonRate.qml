@@ -156,6 +156,30 @@ Form
 		}
 	}
 
+	RadioButtonGroup
+	{
+		name:    "testTarget"
+		title:   qsTr("Test Target")
+		columns: 2
+
+		RadioButton
+		{
+			value: "ratio"
+			label: qsTr("Ratio")
+			id:    targetRatio
+			info:  qsTr("Test the ratio of the two rates.")
+		}
+
+		RadioButton
+		{
+			value:   "difference"
+			label:   qsTr("Difference")
+			checked: true
+			id:      targetDifference
+			info:    qsTr("Test the difference between the two rates.")
+		}
+	}
+
 	Group
 	{
 		title:   qsTr("Tests")
@@ -166,14 +190,23 @@ Form
 			name:    "exactTest"
 			label:   qsTr("Exact")
 			checked: true
-			info:    qsTr("Exact conditional test of the rate ratio (C-test).")
+			info:    qsTr("Exact conditional test (C-test). For the difference, only available for a hypothesized difference of 0.")
 		}
 
 		CheckBox
 		{
 			name:  "normalApprox"
 			label: qsTr("Normal approximation")
-			info:  qsTr("Large-sample score test based on the conditional binomial distribution.")
+			info:  qsTr("Large-sample normal approximation.")
+
+			CheckBox
+			{
+				name:    "pooledSe"
+				label:   qsTr("Pooled standard error")
+				checked: true
+				visible: targetDifference.checked
+				info:    qsTr("Use the pooled rate estimate for the z statistic. Only relevant when testing the difference.")
+			}
 		}
 	}
 
@@ -185,7 +218,19 @@ Form
 		min:          0
 		decimals:     4
 		inclusive:    JASP.MaxOnly
+		visible:      targetRatio.checked
 		info:         qsTr("Null hypothesis value for the rate ratio \u03bb\u2081/\u03bb\u2082.")
+	}
+
+	DoubleField
+	{
+		name:           "testDifference"
+		label:          qsTr("Hypothesized difference (Rate 1 - Rate 2):")
+		defaultValue:   0
+		decimals:       4
+		visible:        targetDifference.checked
+		negativeValues: true
+		info:           qsTr("Null hypothesis value for the rate difference \u03bb\u2081 - \u03bb\u2082.")
 	}
 
 	RadioButtonGroup
@@ -241,19 +286,20 @@ Form
 		CheckBox
 		{
 			name:              "ratioCi"
-			label:             qsTr("Confidence interval for ratio")
+			label:             qsTr("Confidence interval")
 			id:                ratioCi
 			childrenOnSameRow: true
-			info:              qsTr("Confidence interval for the rate ratio \u03bb\u2081/\u03bb\u2082.")
+			info:              qsTr("Confidence interval for the effect (ratio or difference).")
 
 			CIField { name: "confLevel" }
 		}
 
 		RadioButtonGroup
 		{
-			name:                "ciMethod"
-			title:               qsTr("Method")
-			enabled:             ratioCi.checked
+			name:                  "ciMethod"
+			title:                 qsTr("Method")
+			enabled:               ratioCi.checked
+			visible:               targetRatio.checked
 			radioButtonsOnSameRow: true
 
 			RadioButton { value: "exact";  label: qsTr("Exact");               checked: true }

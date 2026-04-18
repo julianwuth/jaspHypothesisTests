@@ -142,8 +142,8 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
         row$ciLower <- ciOut$conf.int[1]
         row$ciUpper <- ciOut$conf.int[2]
       } else {
-        row$ciLower <- ""
-        row$ciUpper <- ""
+        row$ciLower <- NA
+        row$ciUpper <- NA
       }
     }
     return(row)
@@ -165,15 +165,20 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   outputTable$dependOn(c("inputType", "count", "group", "time",
                          "groupOneName", "groupOneOccurrences", "groupOneSampleSize",
                          "groupTwoName", "groupTwoOccurrences", "groupTwoSampleSize",
-                         "exactTest", "normalApprox", "testRatio",
+                         "testTarget", "exactTest", "normalApprox", "pooledSe",
+                         "testRatio", "testDifference",
                          "alternative", "confLevel", "ratioCi", "ciMethod"))
   outputTable$position <- 2
   jaspResults[["outputTable"]] <- outputTable
 
+  isDiff       <- options[["testTarget"]] == "difference"
+  effectTitle  <- if (isDiff) gettext("Difference") else gettext("Ratio")
+  ciEffectName <- if (isDiff) gettext("Difference") else gettext("Ratio")
+
   outputTable$addColumnInfo(name = "method", title = gettext("Method"),   type = "string")
   outputTable$addColumnInfo(name = "rate1",  title = gettext("Rate\u2081"), type = "number")
   outputTable$addColumnInfo(name = "rate2",  title = gettext("Rate\u2082"), type = "number")
-  outputTable$addColumnInfo(name = "ratio",  title = gettext("Ratio"),    type = "number")
+  outputTable$addColumnInfo(name = "effect", title = effectTitle,          type = "number")
 
   if (options[["normalApprox"]])
     outputTable$addColumnInfo(name = "statistic", title = gettext("z"), type = "number")
@@ -181,7 +186,7 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   outputTable$addColumnInfo(name = "pValue", title = gettext("p"), type = "pvalue")
 
   if (options[["ratioCi"]]) {
-    ciTitle <- gettextf("%i%% CI for Ratio", as.integer(options[["confLevel"]] * 100))
+    ciTitle <- gettextf("%i%% CI for %s", as.integer(options[["confLevel"]] * 100), ciEffectName)
     outputTable$addColumnInfo(name = "ciLower", title = gettext("Lower"), type = "number",
                               overtitle = ciTitle)
     outputTable$addColumnInfo(name = "ciUpper", title = gettext("Upper"), type = "number",
@@ -208,18 +213,31 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   g1 <- groupData[[1]]
   g2 <- groupData[[2]]
 
-  rows <- list()
+  isDiff <- options[["testTarget"]] == "difference"
+  rows   <- list()
 
-  if (options[["exactTest"]]) {
-    row <- .computeExactTestTR(g1, g2, options, outputTable)
-    if (!is.null(row))
-      rows[["exact"]] <- row
-  }
-
-  if (options[["normalApprox"]]) {
-    row <- .computeNormalApproxTR(g1, g2, options, outputTable)
-    if (!is.null(row))
-      rows[["normal"]] <- row
+  if (isDiff) {
+    if (options[["exactTest"]]) {
+      row <- .computeExactDiffTR(g1, g2, options, outputTable)
+      if (!is.null(row))
+        rows[["exact"]] <- row
+    }
+    if (options[["normalApprox"]]) {
+      row <- .computeNormalApproxDiffTR(g1, g2, options, outputTable)
+      if (!is.null(row))
+        rows[["normal"]] <- row
+    }
+  } else {
+    if (options[["exactTest"]]) {
+      row <- .computeExactTestTR(g1, g2, options, outputTable)
+      if (!is.null(row))
+        rows[["exact"]] <- row
+    }
+    if (options[["normalApprox"]]) {
+      row <- .computeNormalApproxTR(g1, g2, options, outputTable)
+      if (!is.null(row))
+        rows[["normal"]] <- row
+    }
   }
 
   if (length(rows) == 0)
@@ -227,14 +245,28 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
 
   outputTable$setData(do.call(rbind.data.frame, rows))
 
-  r0 <- options[["testRatio"]]
-  outputTable$addFootnote(
-    switch(options[["alternative"]],
-      "two.sided" = gettextf("H\u2080: Rate\u2081/Rate\u2082 = %.4g.", r0),
-      "greater"   = gettextf("H\u2081: Rate\u2081/Rate\u2082 > %.4g.", r0),
-      "less"      = gettextf("H\u2081: Rate\u2081/Rate\u2082 < %.4g.", r0)
+  if (isDiff) {
+    d0 <- options[["testDifference"]]
+    outputTable$addFootnote(
+      switch(options[["alternative"]],
+        "two.sided" = gettextf("H\u2080: Rate\u2081 \u2212 Rate\u2082 = %.4g.", d0),
+        "greater"   = gettextf("H\u2081: Rate\u2081 \u2212 Rate\u2082 > %.4g.", d0),
+        "less"      = gettextf("H\u2081: Rate\u2081 \u2212 Rate\u2082 < %.4g.", d0)
+      )
     )
-  )
+    if (options[["ratioCi"]])
+      outputTable$addFootnote(gettext("Confidence interval based on the unpooled standard error."))
+  } else {
+    r0 <- options[["testRatio"]]
+    outputTable$addFootnote(
+      switch(options[["alternative"]],
+        "two.sided" = gettextf("H\u2080: Rate\u2081/Rate\u2082 = %.4g.", r0),
+        "greater"   = gettextf("H\u2081: Rate\u2081/Rate\u2082 > %.4g.", r0),
+        "less"      = gettextf("H\u2081: Rate\u2081/Rate\u2082 < %.4g.", r0)
+      )
+    )
+  }
+
   outputTable$addFootnote(
     gettextf("Group 1: %1$s. Group 2: %2$s.", g1$name, g2$name)
   )
@@ -261,8 +293,8 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     method    = gettext("Exact"),
     rate1     = g1$rate,
     rate2     = g2$rate,
-    ratio     = g1$rate / g2$rate,
-    statistic = "",
+    effect    = g1$rate / g2$rate,
+    statistic = NA,
     pValue    = out$p.value,
     row.names = NULL,
     stringsAsFactors = FALSE
@@ -303,7 +335,7 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     method    = gettext("Normal approximation"),
     rate1     = g1$rate,
     rate2     = g2$rate,
-    ratio     = g1$rate / g2$rate,
+    effect    = g1$rate / g2$rate,
     statistic = statistic,
     pValue    = pValue,
     row.names = NULL,
@@ -313,6 +345,117 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   if (options[["ratioCi"]])
     row <- .addRatioCiTR(row, g1, g2, options, outputTable)
 
+  return(row)
+}
+
+.computeExactDiffTR <- function(g1, g2, options, outputTable) {
+  d0 <- options[["testDifference"]]
+
+  if (d0 != 0) {
+    outputTable$addFootnote(
+      gettext("Exact test for the difference is only available when the hypothesized difference is 0."))
+    return(NULL)
+  }
+
+  out <- try(
+    stats::poisson.test(x           = c(g1$events, g2$events),
+                        T           = c(g1$time,   g2$time),
+                        r           = 1,
+                        alternative = options[["alternative"]]),
+    silent = TRUE
+  )
+
+  if (isTryError(out)) {
+    outputTable$setError(gettext(as.character(out)))
+    return(NULL)
+  }
+
+  row <- data.frame(
+    method    = gettext("Exact"),
+    rate1     = g1$rate,
+    rate2     = g2$rate,
+    effect    = g1$rate - g2$rate,
+    statistic = NA,
+    pValue    = out$p.value,
+    row.names = NULL,
+    stringsAsFactors = FALSE
+  )
+
+  if (options[["ratioCi"]]) {
+    row$ciLower <- NA
+    row$ciUpper <- NA
+  }
+
+  return(row)
+}
+
+.computeNormalApproxDiffTR <- function(g1, g2, options, outputTable) {
+  x1 <- g1$events; x2 <- g2$events
+  T1 <- g1$time;   T2 <- g2$time
+  d0 <- options[["testDifference"]]
+
+  if (T1 <= 0 || T2 <= 0) {
+    outputTable$setError(gettext("Normal approximation requires positive sample sizes in both groups."))
+    return(NULL)
+  }
+
+  diff       <- g1$rate - g2$rate
+  pooledRate <- (x1 + x2) / (T1 + T2)
+  sePooled   <- sqrt(pooledRate * (1 / T1 + 1 / T2))
+  seUnpooled <- sqrt(g1$rate / T1 + g2$rate / T2)
+  se         <- if (options[["pooledSe"]]) sePooled else seUnpooled
+
+  if (!is.finite(se) || se == 0) {
+    outputTable$setError(gettext("Normal approximation for the difference could not be computed (zero standard error)."))
+    return(NULL)
+  }
+
+  statistic <- (diff - d0) / se
+
+  pValue <- switch(options[["alternative"]],
+    "two.sided" = 2 * stats::pnorm(-abs(statistic)),
+    "greater"   = stats::pnorm(statistic, lower.tail = FALSE),
+    "less"      = stats::pnorm(statistic)
+  )
+
+  row <- data.frame(
+    method    = gettext("Normal approximation"),
+    rate1     = g1$rate,
+    rate2     = g2$rate,
+    effect    = diff,
+    statistic = statistic,
+    pValue    = pValue,
+    row.names = NULL,
+    stringsAsFactors = FALSE
+  )
+
+  if (options[["ratioCi"]])
+    row <- .addDiffCiTR(row, g1, g2, seUnpooled, options)
+
+  return(row)
+}
+
+.addDiffCiTR <- function(row, g1, g2, seUnpooled, options) {
+  if (!is.finite(seUnpooled)) {
+    row$ciLower <- NA
+    row$ciUpper <- NA
+    return(row)
+  }
+
+  diff  <- g1$rate - g2$rate
+  alpha <- 1 - options[["confLevel"]]
+  z     <- stats::qnorm(1 - alpha / ifelse(options[["alternative"]] == "two.sided", 2, 1))
+
+  if (options[["alternative"]] == "two.sided") {
+    row$ciLower <- diff - z * seUnpooled
+    row$ciUpper <- diff + z * seUnpooled
+  } else if (options[["alternative"]] == "greater") {
+    row$ciLower <- diff - z * seUnpooled
+    row$ciUpper <- Inf
+  } else {
+    row$ciLower <- -Inf
+    row$ciUpper <- diff + z * seUnpooled
+  }
   return(row)
 }
 
@@ -328,8 +471,8 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     )
     if (isTryError(ciOut)) {
       outputTable$addFootnote(gettext("Exact CI could not be computed."), symbol = gettext("<b>Warning:</b>"))
-      row$ciLower <- ""
-      row$ciUpper <- ""
+      row$ciLower <- NA
+      row$ciUpper <- NA
     } else {
       row$ciLower <- ciOut$conf.int[1]
       row$ciUpper <- ciOut$conf.int[2]
@@ -343,8 +486,8 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
         gettext("Normal approximation CI for ratio requires both event counts > 0."),
         symbol = gettext("<b>Warning:</b>")
       )
-      row$ciLower <- ""
-      row$ciUpper <- ""
+      row$ciLower <- NA
+      row$ciUpper <- NA
     } else {
       alpha   <- 1 - options[["confLevel"]]
       z       <- stats::qnorm(1 - alpha / ifelse(options[["alternative"]] == "two.sided", 2, 1))
