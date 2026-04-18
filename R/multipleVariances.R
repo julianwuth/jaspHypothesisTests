@@ -452,7 +452,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
   }
 
   ratioTable$addRows(rows)
-  ratioTable$addFootnote(gettextf("Variance ratio: Group %s / Group %s.", levels[1], levels[2]))
+  ratioTable$addFootnote(gettextf("Variance ratio: Group %1$s / Group %2$s.", levels[1], levels[2]))
 
   return()
 }

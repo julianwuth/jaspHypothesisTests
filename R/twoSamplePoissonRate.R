@@ -236,7 +236,7 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     )
   )
   outputTable$addFootnote(
-    gettextf("Group 1: %s. Group 2: %s.", g1$name, g2$name)
+    gettextf("Group 1: %1$s. Group 2: %2$s.", g1$name, g2$name)
   )
 
   return()
