@@ -25,8 +25,11 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   if (inputType == "rawData") {
     ready <- options[["count"]] != "" && options[["group"]] != "" && hasAnyTest
     if (ready)
-      .hasErrors(dataset, type = "infinity",
-                 all.target = options[["count"]],
+      .hasErrors(dataset, type = c("infinity", "negativeValues", "factorLevels"),
+                 infinity.target = options[["count"]],
+                 negativeValues.target = c(options[["count"]], options[["time"]]),
+                 factorLevels.target = options[["group"]],
+                 factorLevels.amount = '!= 2',
                  exitAnalysisIfErrors = TRUE)
   } else {
     ready <- hasAnyTest
@@ -51,14 +54,11 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     groupCol <- dataset[[groupVar]]
     lvls     <- levels(factor(groupCol))
 
-    if (length(lvls) != 2)
-      stop(gettextf("Group variable must have exactly 2 levels, but found %d.", length(lvls)))
-
     groups <- vector("list", 2)
     for (i in 1:2) {
       mask   <- !is.na(groupCol) & groupCol == lvls[i]
       counts <- stats::na.omit(countCol[mask])
-      events <- as.integer(round(sum(counts)))
+      events <- as.integer(round(sum(counts))) # TODO does this have to be rounded?
 
       if (options[["time"]] != "") {
         timeCol <- dataset[[options[["time"]]]]
@@ -74,11 +74,11 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     n2 <- options[["groupTwoName"]]
     groups <- list(
       list(name   = if (nchar(n1) > 0) n1 else gettext("Group 1"),
-           events = options[["groupOneEvents"]],
-           time   = options[["groupOneTime"]]),
+           events = options[["groupOneOccurrences"]],
+           time   = options[["groupOneSampleSize"]]),
       list(name   = if (nchar(n2) > 0) n2 else gettext("Group 2"),
-           events = options[["groupTwoEvents"]],
-           time   = options[["groupTwoTime"]])
+           events = options[["groupTwoOccurrences"]],
+           time   = options[["groupTwoSampleSize"]])
     )
   }
   groups[[1]]$rate <- groups[[1]]$events / groups[[1]]$time
@@ -94,9 +94,9 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
 
   descTable <- createJaspTable(title = gettext("Descriptive Statistics"))
   descTable$dependOn(c("inputType", "count", "group", "time",
-                       "groupOneName", "groupOneEvents", "groupOneTime",
-                       "groupTwoName", "groupTwoEvents", "groupTwoTime",
-                       "descriptives", "descriptiveCi", "confLevel"))
+                       "groupOneName", "groupOneOccurrences", "groupOneSampleSize",
+                       "groupTwoName", "groupTwoOccurrences", "groupTwoSampleSize",
+                       "descriptives", "descriptiveCi", "descriptiveConfLevel"))
   descTable$position <- 1
   jaspResults[["descriptivesTable"]] <- descTable
 
@@ -106,7 +106,7 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   descTable$addColumnInfo(name = "rate",      title = gettext("Rate"),   type = "number")
 
   if (options[["descriptiveCi"]]) {
-    ciTitle <- gettextf("%i%% Confidence Interval", as.integer(options[["confLevel"]] * 100))
+    ciTitle <- gettextf("%i%% Confidence Interval", as.integer(options[["descriptiveConfLevel"]] * 100))
     descTable$addColumnInfo(name = "ciLower", title = gettext("Lower"), type = "number",
                             overtitle = ciTitle)
     descTable$addColumnInfo(name = "ciUpper", title = gettext("Upper"), type = "number",
@@ -135,23 +135,22 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     )
     if (options[["descriptiveCi"]]) {
       ciOut <- try(
-        stats::poisson.test(x = g$events, T = g$time, conf.level = options[["confLevel"]]),
+        stats::poisson.test(x = g$events, T = g$time, conf.level = options[["descriptiveConfLevel"]]),
         silent = TRUE
       )
       if (!isTryError(ciOut)) {
         row$ciLower <- ciOut$conf.int[1]
         row$ciUpper <- ciOut$conf.int[2]
       } else {
-        row$ciLower <- NA_real_
-        row$ciUpper <- NA_real_
+        row$ciLower <- ""
+        row$ciUpper <- ""
       }
     }
     return(row)
   })
 
   descTable$setData(do.call(rbind, rows))
-  descTable$addFootnote(gettext("Confidence interval based on exact Poisson distribution."),
-                        symbol = NULL)
+  descTable$addFootnote(gettext("Confidence interval based on exact Poisson distribution."))
 
   return()
 }
@@ -164,8 +163,8 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
 
   outputTable <- createJaspTable(title = gettext("Two-Sample Poisson Rate Test"))
   outputTable$dependOn(c("inputType", "count", "group", "time",
-                         "groupOneName", "groupOneEvents", "groupOneTime",
-                         "groupTwoName", "groupTwoEvents", "groupTwoTime",
+                         "groupOneName", "groupOneOccurrences", "groupOneSampleSize",
+                         "groupTwoName", "groupTwoOccurrences", "groupTwoSampleSize",
                          "exactTest", "normalApprox", "testRatio",
                          "alternative", "confLevel", "ratioCi", "ciMethod"))
   outputTable$position <- 2
@@ -177,7 +176,7 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   outputTable$addColumnInfo(name = "ratio",  title = gettext("Ratio"),    type = "number")
 
   if (options[["normalApprox"]])
-    outputTable$addColumnInfo(name = "statistic", title = gettext("Z"), type = "number")
+    outputTable$addColumnInfo(name = "statistic", title = gettext("z"), type = "number")
 
   outputTable$addColumnInfo(name = "pValue", title = gettext("p"), type = "pvalue")
 
@@ -231,9 +230,9 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   r0 <- options[["testRatio"]]
   outputTable$addFootnote(
     switch(options[["alternative"]],
-      "two.sided" = gettextf("H\u2080: rate\u2081/rate\u2082 = %.4g.", r0),
-      "greater"   = gettextf("H\u2081: rate\u2081/rate\u2082 > %.4g.", r0),
-      "less"      = gettextf("H\u2081: rate\u2081/rate\u2082 < %.4g.", r0)
+      "two.sided" = gettextf("H\u2080: Rate\u2081/Rate\u2082 = %.4g.", r0),
+      "greater"   = gettextf("H\u2081: Rate\u2081/Rate\u2082 > %.4g.", r0),
+      "less"      = gettextf("H\u2081: Rate\u2081/Rate\u2082 < %.4g.", r0)
     )
   )
   outputTable$addFootnote(
@@ -263,7 +262,7 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
     rate1     = g1$rate,
     rate2     = g2$rate,
     ratio     = g1$rate / g2$rate,
-    statistic = NA_real_,
+    statistic = "",
     pValue    = out$p.value,
     row.names = NULL,
     stringsAsFactors = FALSE
@@ -276,12 +275,14 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
 }
 
 .computeNormalApproxTR <- function(g1, g2, options, outputTable) {
-  x1 <- g1$events;  x2 <- g2$events
-  T1 <- g1$time;    T2 <- g2$time
+  x1 <- g1$events
+  x2 <- g2$events
+  T1 <- g1$time
+  T2 <- g2$time
   r0 <- options[["testRatio"]]
 
   # Conditional binomial score test: X1 | X1+X2 ~ Bin(n, p0)
-  n  <- x1 + x2
+  n  <- x1 + x2 # TODO this overflows for huge values
   p0 <- r0 * T1 / (r0 * T1 + T2)
 
   if (n == 0) {
@@ -326,22 +327,24 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
       silent = TRUE
     )
     if (isTryError(ciOut)) {
-      outputTable$addFootnote(gettext("Exact CI could not be computed."), symbol = gettext("Warning:"))
-      row$ciLower <- NA_real_
-      row$ciUpper <- NA_real_
+      outputTable$addFootnote(gettext("Exact CI could not be computed."), symbol = gettext("<b>Warning:</b>"))
+      row$ciLower <- ""
+      row$ciUpper <- ""
     } else {
       row$ciLower <- ciOut$conf.int[1]
       row$ciUpper <- ciOut$conf.int[2]
     }
   } else { # log-transform normal CI for ratio
-    x1 <- g1$events;  x2 <- g2$events
+    # TODO check if this is correct
+    x1 <- g1$events
+    x2 <- g2$events
     if (x1 == 0 || x2 == 0) {
       outputTable$addFootnote(
         gettext("Normal approximation CI for ratio requires both event counts > 0."),
-        symbol = gettext("Warning:")
+        symbol = gettext("<b>Warning:</b>")
       )
-      row$ciLower <- NA_real_
-      row$ciUpper <- NA_real_
+      row$ciLower <- ""
+      row$ciUpper <- ""
     } else {
       alpha   <- 1 - options[["confLevel"]]
       z       <- stats::qnorm(1 - alpha / ifelse(options[["alternative"]] == "two.sided", 2, 1))

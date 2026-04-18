@@ -102,22 +102,22 @@ Form
 
 			IntegerField
 			{
-				name:         "groupOneEvents"
-				label:        qsTr("Events")
+				name:         "groupOneOccurrences"
+				label:        qsTr("Occurrences")
 				defaultValue: 1
 				min:          0
-				info:         qsTr("Number of observed events in group 1.")
+				info:         qsTr("Number of observed occurrences in group 1.")
 			}
 
 			DoubleField
 			{
-				name:         "groupOneTime"
-				label:        qsTr("Time")
+				name:         "groupOneSampleSize"
+				label:        qsTr("Sample size")
 				defaultValue: 1
 				min:          0
 				decimals:     4
 				inclusive:    JASP.MaxOnly
-				info:         qsTr("Total observation time or exposure for group 1.")
+				info:         qsTr("Total number of observations for group 1.")
 			}
 		}
 
@@ -136,22 +136,22 @@ Form
 
 			IntegerField
 			{
-				name:         "groupTwoEvents"
-				label:        qsTr("Events")
+				name:         "groupTwoOccurrences"
+				label:        qsTr("Occurrences")
 				defaultValue: 1
 				min:          0
-				info:         qsTr("Number of observed events in group 2.")
+				info:         qsTr("Number of observed occurrences in group 2.")
 			}
 
 			DoubleField
 			{
-				name:         "groupTwoTime"
-				label:        qsTr("Time")
+				name:         "groupTwoSampleSize"
+				label:        qsTr("Sample size")
 				defaultValue: 1
 				min:          0
 				decimals:     4
 				inclusive:    JASP.MaxOnly
-				info:         qsTr("Total observation time or exposure for group 2.")
+				info:         qsTr("Total number of observations for group 2.")
 			}
 		}
 	}
@@ -180,7 +180,7 @@ Form
 	DoubleField
 	{
 		name:         "testRatio"
-		label:        qsTr("Hypothesized ratio (rate\u2081 / rate\u2082):")
+		label:        qsTr("Hypothesized ratio (Rate 1 / Rate 2):")
 		defaultValue: 1
 		min:          0
 		decimals:     4
@@ -196,7 +196,7 @@ Form
 		RadioButton
 		{
 			value:   "two.sided"
-			label:   qsTr("rate\u2081 \u2260 rate\u2082")
+			label:   qsTr("Rate 1 \u2260 Rate 2")
 			checked: true
 			info:    qsTr("Two-sided: the rate ratio differs from the hypothesized value.")
 		}
@@ -204,15 +204,15 @@ Form
 		RadioButton
 		{
 			value: "greater"
-			label: qsTr("rate\u2081 > rate\u2082")
-			info:  qsTr("One-sided: rate 1 is greater than rate 2.")
+			label: qsTr("Rate 1 > Rate 2")
+			info:  qsTr("One-sided: Rate 1 is greater than Rate 2.")
 		}
 
 		RadioButton
 		{
 			value: "less"
-			label: qsTr("rate\u2081 < rate\u2082")
-			info:  qsTr("One-sided: rate 1 is less than rate 2.")
+			label: qsTr("Rate 1 < Rate 2")
+			info:  qsTr("One-sided: Rate 1 is less than Rate 2.")
 		}
 	}
 
@@ -229,9 +229,12 @@ Form
 
 			CheckBox
 			{
-				name: "descriptiveCi"
-				label: qsTr("Confidence interval (exact)")
-				info:  qsTr("Exact per-group confidence intervals for the individual rates.")
+				name:              "descriptiveCi"
+				label:             qsTr("Confidence interval for individual rates")
+				childrenOnSameRow: true
+				info:              qsTr("Exact per-group confidence intervals for the individual rates.")
+
+				CIField { name: "descriptiveConfLevel" }
 			}
 		}
 

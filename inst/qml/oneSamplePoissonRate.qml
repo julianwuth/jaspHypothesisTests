@@ -80,8 +80,8 @@ Form
 
 		IntegerField
 		{
-			name:         "observedOccurences"
-			label:        qsTr("Number of occurences")
+			name:         "observedOccurrences"
+			label:        qsTr("Number of occurrences")
 			defaultValue: 1
 			min:          0
 			info:         qsTr("Total number of observed occurrences.")
