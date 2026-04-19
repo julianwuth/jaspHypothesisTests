@@ -56,7 +56,7 @@ Form
 		AssignedVariablesList
 		{
 			name:           "count"
-			title:          qsTr("Count variable")
+			title:          qsTr("Count/Occurrences")
 			singleVariable: true
 			allowedColumns: ["scale"]
 			info:           qsTr("A variable containing the observed event counts.")
@@ -65,10 +65,10 @@ Form
 		AssignedVariablesList
 		{
 			name:           "time"
-			title:          qsTr("Time variable (optional)")
+			title:          qsTr("Sample size (optional)")
 			singleVariable: true
 			allowedColumns: ["scale"]
-			info:           qsTr("A variable containing the observation time or exposure for each row. If omitted, each row is assumed to contribute one unit of time.")
+			info:           qsTr("A variable containing the sample size, observation time or exposure for each row. If omitted, each row is assumed to contribute one unit of time.")
 		}
 	}
 

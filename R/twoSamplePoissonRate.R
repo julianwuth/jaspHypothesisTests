@@ -100,10 +100,10 @@ twoSamplePoissonRate <- function(jaspResults, dataset, options) {
   descTable$position <- 1
   jaspResults[["descriptivesTable"]] <- descTable
 
-  descTable$addColumnInfo(name = "groupName", title = gettext("Group"),  type = "string")
-  descTable$addColumnInfo(name = "events",    title = gettext("Events"), type = "integer")
-  descTable$addColumnInfo(name = "time",      title = gettext("Time"),   type = "number")
-  descTable$addColumnInfo(name = "rate",      title = gettext("Rate"),   type = "number")
+  descTable$addColumnInfo(name = "groupName", title = gettext("Group"),       type = "string")
+  descTable$addColumnInfo(name = "events",    title = gettext("Occurrences"), type = "integer")
+  descTable$addColumnInfo(name = "time",      title = gettext("N"),           type = "number")
+  descTable$addColumnInfo(name = "rate",      title = gettext("Rate"),        type = "number")
 
   if (options[["descriptiveCi"]]) {
     ciTitle <- gettextf("%i%% Confidence Interval", as.integer(options[["descriptiveConfLevel"]] * 100))

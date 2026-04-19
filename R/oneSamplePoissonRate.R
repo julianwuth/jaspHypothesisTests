@@ -67,10 +67,10 @@ oneSamplePoissonRate <- function(jaspResults, dataset, options) {
                          "confLevel", "rateCi"))
   jaspResults[["outputTable"]] <- outputTable
 
-  outputTable$addColumnInfo(name = "method",  title = gettext("Method"),  type = "string")
-  outputTable$addColumnInfo(name = "events",  title = gettext("Events"),  type = "integer")
-  outputTable$addColumnInfo(name = "time",    title = gettext("Time"),    type = "number")
-  outputTable$addColumnInfo(name = "rate",    title = gettext("Rate"),    type = "number")
+  outputTable$addColumnInfo(name = "method",  title = gettext("Method"),      type = "string")
+  outputTable$addColumnInfo(name = "events",  title = gettext("Occurrences"), type = "integer")
+  outputTable$addColumnInfo(name = "time",    title = gettext("N"),           type = "number")
+  outputTable$addColumnInfo(name = "rate",    title = gettext("Rate"),        type = "number")
 
   if (options[["normalApprox"]])
     outputTable$addColumnInfo(name = "statistic", title = gettext("z"), type = "number")

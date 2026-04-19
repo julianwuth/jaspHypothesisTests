@@ -82,7 +82,17 @@ Form
         {
             name: "varianceRatioCi"
             label: qsTr("Variance ratio (2 groups)")
-            info: qsTr("Confidence interval for the variance ratio (F-test based, 2 groups only).")
+            id: varianceRatioCi
+            info: qsTr("Confidence interval for the variance ratio (2 groups only).")
+
+            RadioButtonGroup
+            {
+                name: "ratioCiMethod"
+                title: qsTr("Method")
+                radioButtonsOnSameRow: true
+                RadioButton { value: "fTest"; label: qsTr("F-test"); checked: true }
+                RadioButton { value: "bonett"; label: qsTr("Bonett") }
+            }
         }
     }
 

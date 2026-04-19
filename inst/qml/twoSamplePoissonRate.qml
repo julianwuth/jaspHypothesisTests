@@ -56,7 +56,7 @@ Form
 		AssignedVariablesList
 		{
 			name:           "count"
-			title:          qsTr("Count variable")
+			title:          qsTr("Count/Occurrences")
 			singleVariable: true
 			allowedColumns: ["scale"]
 			info:           qsTr("A variable containing the observed event counts per row.")
@@ -65,7 +65,7 @@ Form
 		AssignedVariablesList
 		{
 			name:           "group"
-			title:          qsTr("Group variable")
+			title:          qsTr("Group")
 			singleVariable: true
 			allowedColumns: ["nominal", "ordinal"]
 			info:           qsTr("A variable with exactly 2 levels identifying the two groups.")
@@ -74,10 +74,10 @@ Form
 		AssignedVariablesList
 		{
 			name:           "time"
-			title:          qsTr("Time variable (optional)")
+			title:          qsTr("Sample size (optional)")
 			singleVariable: true
 			allowedColumns: ["scale"]
-			info:           qsTr("Per-row observation time or exposure. If omitted, each row contributes one unit.")
+			info:           qsTr("Per-row observation sample size, time or exposure. If omitted, each row contributes one unit.")
 		}
 	}
 

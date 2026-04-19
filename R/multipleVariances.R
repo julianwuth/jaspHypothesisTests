@@ -53,7 +53,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
   if(!is.null(jaspResults[["outputTable"]]))
     return()
 
-  outputTable <- createJaspTable(title = gettext("Test of Equality of Variances"))
+  outputTable <- createJaspTable(title = gettext("Test for Equality of Variances"))
   outputTable$dependOn(c("dependent", "factor", "fTest", "leveneTest", "bonettTest", "bartlettTest"))
   outputTable$position <- 1
   jaspResults[["outputTable"]] <- outputTable
@@ -293,6 +293,51 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
   list(statistic = statistic, df = 1, p.value = p.value, error = NULL)
 }
 
+.computeBonettRatioCiMV <- function(y1, y2, confLevel) {
+  # Bonett (2006) CI for sigma1^2 / sigma2^2 using the Banga & Fox (2013) / Minitab
+  # equalizer constant c(z) = n1*(n2-z) / ((n1-z)*n2).
+  n1 <- length(y1); n2 <- length(y2)
+  if (n1 < 4 || n2 < 4)
+    return(list(lower = NA, upper = NA,
+                error = gettext("Bonett CI requires at least 4 observations per group.")))
+
+  k1 <- .computeWinsorizedComponents(y1)
+  k2 <- .computeWinsorizedComponents(y2)
+  var1 <- k1$var; var2 <- k2$var
+  if (!is.finite(var1) || !is.finite(var2) || var1 <= 0 || var2 <= 0)
+    return(list(lower = NA, upper = NA, error = gettext("Bonett CI could not be computed.")))
+
+  r1 <- (n1 - 3) / n1
+  r2 <- (n2 - 3) / n2
+
+  # Pooled kurtosis (matches Banga & Fox / Minitab for both test and CI)
+  poolDenom <- ((n1 - 1) * var1 + (n2 - 1) * var2)^2
+  omegaP    <- (n1 + n2) * (k1$sum_d4 + k2$sum_d4) / poolDenom
+  se2       <- (omegaP - r1) / (n1 - 1) + (omegaP - r2) / (n2 - 1)
+
+  if (!is.finite(se2) || se2 <= 0)
+    return(list(lower = NA, upper = NA, error = gettext("Bonett CI could not be computed.")))
+
+  se <- sqrt(se2)
+  z  <- qnorm(1 - (1 - confLevel) / 2)
+
+  if (n1 <= z || n2 <= z)
+    return(list(lower = NA, upper = NA, error = gettext("Bonett CI could not be computed.")))
+
+  # c(z) for lower bound (original order) and upper bound (groups swapped)
+  cLow <- n1 * (n2 - z) / ((n1 - z) * n2)
+  cUpp <- n2 * (n1 - z) / ((n2 - z) * n1)
+
+  if (cLow <= 0 || cUpp <= 0)
+    return(list(lower = NA, upper = NA, error = gettext("Bonett CI could not be computed.")))
+
+  ratio <- var1 / var2
+  lower <- cLow * ratio * exp(-z * se)
+  upper <- ratio / cUpp * exp( z * se)
+
+  list(lower = lower, upper = upper, error = NULL)
+}
+
 .createDescriptivesTableMV <- function(jaspResults, dataset, options, ready) {
   if (!is.null(jaspResults[["descriptivesTable"]]))
     return()
@@ -394,7 +439,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     return()
 
   ratioTable <- createJaspTable(title = gettext("Variance Ratio"))
-  ratioTable$dependOn(c("dependent", "factor", "varianceRatioCi", "confLevel"))
+  ratioTable$dependOn(c("dependent", "factor", "varianceRatioCi", "ratioCiMethod", "confLevel"))
   ratioTable$position <- 3
   jaspResults[["varianceRatioTable"]] <- ratioTable
 
@@ -426,7 +471,8 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     return()
   }
 
-  rows <- list()
+  rows       <- list()
+  useBonett  <- identical(options[["ratioCiMethod"]], "bonett")
 
   for (depName in options[["dependent"]]) {
     y <- dataset[[depName]]
@@ -440,19 +486,45 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
       next
     }
 
-    # TODO Confidence interval on ratio is not the same as in Minitab
-    res <- try(var.test(subData$y ~ subData$group, conf.level = options[["confLevel"]]), silent = TRUE)
-    if (isTryError(res)) {
-      ratioTable$setError(as.character(res))
-      return()
+    y1 <- subData$y[subData$group == levels[1]]
+    y2 <- subData$y[subData$group == levels[2]]
+
+    if (length(y1) < 2 || length(y2) < 2 || var(y1) <= 0 || var(y2) <= 0) {
+      ratioTable$addFootnote(gettextf("%s: insufficient data to compute the variance ratio.", depName),
+                             symbol = gettext("<b>Warning:</b>"))
+      next
     }
 
-    rows[[length(rows) + 1]] <- list(var = depName, ratio = res$estimate,
-                                     lower = res$conf.int[1], upper = res$conf.int[2])
+    ratioEst <- var(y1) / var(y2)
+
+    if (useBonett) {
+      ciRes <- .computeBonettRatioCiMV(y1, y2, options[["confLevel"]])
+      if (!is.null(ciRes$error)) {
+        ratioTable$addFootnote(gettextf("%1$s: %2$s", depName, ciRes$error),
+                               symbol = gettext("<b>Warning:</b>"))
+        next
+      }
+      rows[[length(rows) + 1]] <- list(var = depName, ratio = ratioEst,
+                                       lower = ciRes$lower, upper = ciRes$upper)
+    } else {
+      res <- try(var.test(subData$y ~ subData$group, conf.level = options[["confLevel"]]), silent = TRUE)
+      if (isTryError(res)) {
+        ratioTable$setError(as.character(res))
+        return()
+      }
+      rows[[length(rows) + 1]] <- list(var = depName, ratio = unname(res$estimate),
+                                       lower = res$conf.int[1], upper = res$conf.int[2])
+    }
   }
 
   ratioTable$addRows(rows)
   ratioTable$addFootnote(gettextf("Variance ratio: Group %1$s / Group %2$s.", levels[1], levels[2]))
+  ratioTable$addFootnote(
+    if (useBonett)
+      gettext("Confidence interval based on Bonett's method (Banga & Fox, 2013).")
+    else
+      gettext("Confidence interval based on the F-test.")
+  )
 
   return()
 }
@@ -627,7 +699,7 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     return()
 
   ratioContainer <- createJaspContainer(title = gettext("Variance Ratio Plot"))
-  ratioContainer$dependOn(c("varRatioPlot", "confLevel"))
+  ratioContainer$dependOn(c("varRatioPlot", "confLevel", "ratioCiMethod"))
   jaspResults[["summaryPlots"]][["varRatioPlot"]] <- ratioContainer
 
   if (!ready)
@@ -643,8 +715,10 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
     return()
   }
 
-  xLabel <- gettextf("%i%% CI for \u03C3\u00B2(%s) / \u03C3\u00B2(%s)",
-                     round(options[["confLevel"]] * 100), levels[1], levels[2])
+  xLabel    <- gettextf("%i%% CI for \u03C3\u00B2(%s) / \u03C3\u00B2(%s)",
+                        round(options[["confLevel"]] * 100), levels[1], levels[2])
+  useBonett <- identical(options[["ratioCiMethod"]], "bonett")
+  methodLab <- if (useBonett) gettext("Bonett") else gettext("F-test")
 
   for (depName in options[["dependent"]]) {
     tempPlot <- createJaspPlot(title = gettext(depName), height = 250, width = 500)
@@ -656,18 +730,37 @@ multipleVariances <- function(jaspResults, dataset, options, ...) {
       next
     }
 
-    # F-test-based variance ratio CI
-    res <- try(var.test(plotDat$y ~ plotDat$group, conf.level = options[["confLevel"]]), silent = TRUE)
-    if (isTryError(res)) {
-      tempPlot$setError(as.character(res))
+    y1 <- plotDat$y[plotDat$group == levels[1]]
+    y2 <- plotDat$y[plotDat$group == levels[2]]
+
+    if (length(y1) < 2 || length(y2) < 2 || var(y1) <= 0 || var(y2) <= 0) {
+      tempPlot$setError(gettextf("%s: insufficient data to compute the variance ratio.", depName))
       next
     }
 
+    ratioEst <- var(y1) / var(y2)
+
+    if (useBonett) {
+      ciRes <- .computeBonettRatioCiMV(y1, y2, options[["confLevel"]])
+      if (!is.null(ciRes$error)) {
+        tempPlot$setError(gettextf("%1$s: %2$s", depName, ciRes$error))
+        next
+      }
+      lower <- ciRes$lower; upper <- ciRes$upper
+    } else {
+      res <- try(var.test(plotDat$y ~ plotDat$group, conf.level = options[["confLevel"]]), silent = TRUE)
+      if (isTryError(res)) {
+        tempPlot$setError(as.character(res))
+        next
+      }
+      lower <- res$conf.int[1]; upper <- res$conf.int[2]
+    }
+
     df <- data.frame(
-      method   = gettext("F-test"),
-      estimate = unname(res$estimate),
-      lower    = res$conf.int[1],
-      upper    = res$conf.int[2]
+      method   = methodLab,
+      estimate = ratioEst,
+      lower    = lower,
+      upper    = upper
     )
 
     xBreaks <- jaspGraphs::getPrettyAxisBreaks(c(1, df$lower, df$upper))
